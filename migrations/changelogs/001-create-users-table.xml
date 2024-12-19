@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <changeSet id="001" author="developer">
+        <comment>创建用户表</comment>
+        
+        <createTable tableName="users">
+            <column name="id" type="int" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="username" type="varchar(50)">
+                <constraints unique="true" nullable="false"/>
+            </column>
+            <column name="password_hash" type="varchar(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="current_word_index" type="int" defaultValue="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="datetime" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="datetime" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <createIndex indexName="idx_users_username"
+                    tableName="users"
+                    unique="true">
+            <column name="username"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="002" author="developer">
+        <comment>添加更新时间触发器</comment>
+        
+        <sql>
+            CREATE TRIGGER update_users_timestamp
+            BEFORE UPDATE ON users
+            FOR EACH ROW
+            SET NEW.updated_at = CURRENT_TIMESTAMP;
+        </sql>
+        
+        <rollback>
+            DROP TRIGGER IF EXISTS update_users_timestamp;
+        </rollback>
+    </changeSet>
+</databaseChangeLog> 

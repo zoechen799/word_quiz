@@ -1,0 +1,10 @@
+# 数据库相关
+SQLAlchemy
+PyMySQL
+fastapi
+websocket-client
+pydantic
+difflib
+typing
+jwt
+websocket
