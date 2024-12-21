@@ -66,3 +66,4 @@ speech/**
 tmp/**
 application.properties
 liquibase/internal/**
+models/**

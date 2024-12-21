@@ -1,6 +1,7 @@
-from sqlalchemy import create_engine, Column, Integer, String, DateTime
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, func
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.exc import SQLAlchemyError
 from datetime import datetime
 import bcrypt
 from typing import Optional
@@ -26,6 +27,16 @@ class User(Base):
     current_word_index = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class WrongWord(Base):
+    __tablename__ = "wrong_words"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), nullable=False)
+    word = Column(String(100), nullable=False)
+    error_count = Column(Integer, default=1)
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
 class UserStore:
     @staticmethod
@@ -92,7 +103,102 @@ class UserStore:
         finally:
             db.close()
 
-# 创建数���库表
+    @staticmethod
+    def add_to_wrong_list(username: str, word: str) -> None:
+        """添加单词到错词本，如果已存在则增加错误次数"""
+        with SessionLocal() as db:
+            try:
+                # 查找是否已存在
+                wrong_word = db.query(WrongWord).filter(
+                    WrongWord.username == username,
+                    WrongWord.word == word
+                ).first()
+
+                if wrong_word:
+                    # 如果存在，增加错误次数
+                    wrong_word.error_count += 1
+                    wrong_word.updated_at = func.now()
+                else:
+                    # 如果不存在，创建新记录
+                    wrong_word = WrongWord(
+                        username=username,
+                        word=word
+                    )
+                    db.add(wrong_word)
+
+                db.commit()
+            except SQLAlchemyError as e:
+                db.rollback()
+                raise e
+
+    @staticmethod
+    def remove_from_wrong_list(username: str, word: str) -> None:
+        """从错词本中移除单词"""
+        with SessionLocal() as db:
+            try:
+                db.query(WrongWord).filter(
+                    WrongWord.username == username,
+                    WrongWord.word == word
+                ).delete()
+                db.commit()
+            except SQLAlchemyError as e:
+                db.rollback()
+                raise e
+
+    @staticmethod
+    def increase_wrong_count(username: str, word: str) -> None:
+        """增加单词的错误次数"""
+        with SessionLocal() as db:
+            try:
+                wrong_word = db.query(WrongWord).filter(
+                    WrongWord.username == username,
+                    WrongWord.word == word
+                ).first()
+                
+                if wrong_word:
+                    wrong_word.error_count += 1
+                    wrong_word.updated_at = func.now()
+                    db.commit()
+            except SQLAlchemyError as e:
+                db.rollback()
+                raise e
+
+    @staticmethod
+    def get_wrong_list(username: str, page: int = 1, page_size: int = 10) -> list:
+        """获取用户的错词列表，支持分页"""
+        with SessionLocal() as db:
+            try:
+                offset = (page - 1) * page_size
+                wrong_words = db.query(WrongWord).filter(
+                    WrongWord.username == username
+                ).order_by(
+                    WrongWord.error_count.desc(),
+                    WrongWord.updated_at.desc()
+                ).offset(offset).limit(page_size).all()
+
+                return [
+                    {
+                        "word": w.word,
+                        "error_count": w.error_count,
+                        "created_at": w.created_at,
+                        "updated_at": w.updated_at
+                    } for w in wrong_words
+                ]
+            except SQLAlchemyError as e:
+                raise e
+
+    @staticmethod
+    def get_wrong_words_count(username: str) -> int:
+        """获取用户错词总数"""
+        with SessionLocal() as db:
+            try:
+                return db.query(WrongWord).filter(
+                    WrongWord.username == username
+                ).count()
+            except SQLAlchemyError as e:
+                raise e
+
+# 创建数据库表
 def init_db():
     # 运行数据库迁移
     run_migrations()

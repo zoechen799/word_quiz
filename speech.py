@@ -14,13 +14,18 @@ from datetime import datetime
 from time import mktime
 import _thread as thread
 import os
- 
+from util import load_config
+import threading
+import asyncio
+from pathlib import Path
  
 STATUS_FIRST_FRAME = 0  # 第一帧的标识
 STATUS_CONTINUE_FRAME = 1  # 中间帧标识
 STATUS_LAST_FRAME = 2  # 最后一帧的标识
  
- 
+# 获取数据库配置
+config = load_config('xfyun')
+
 class Ws_Param(object):
     # 初始化
     def __init__(self, APPID, APIKey, APISecret, Text):
@@ -70,28 +75,43 @@ class Ws_Param(object):
         # print('websocket url :', url)
         return url
  
+class SpeechGenerator:
+    def __init__(self):
+        self.completion_event = threading.Event()
+        self.error = None
+        self.output_path = None
+
 def on_message(ws, message):
     try:
-        message =json.loads(message)
+        message = json.loads(message)
         code = message["code"]
-        sid = message["sid"]
         audio = message["data"]["audio"]
         audio = base64.b64decode(audio)
         status = message["data"]["status"]
-        print(message)
-        if status == 2:
-            print("ws is closed")
-            ws.close()
+        
+        # 确保speech目录存在
+        Path("./speech").mkdir(exist_ok=True)
+        output_path = f"./speech/{ws.text}.mp3"
+        
         if code != 0:
-            errMsg = message["message"]
-            print("sid:%s call error:%s code is:%s" % (sid, errMsg, code))
-        else:
- 
-            with open('./demo.mp3', 'ab') as f:
-                f.write(audio)
- 
+            ws.speech_generator.error = f"错误码：{code}, 错误信息：{message['message']}"
+            ws.speech_generator.completion_event.set()
+            ws.close()
+            return
+            
+        with open(output_path, 'ab') as f:
+            f.write(audio)
+        
+        if status == 2:
+            print("------>文本合成结束")
+            ws.speech_generator.output_path = output_path
+            ws.speech_generator.completion_event.set()
+            ws.close()
+
     except Exception as e:
-        print("receive msg,but parse exception:", e)
+        ws.speech_generator.error = f"接收消息异常: {str(e)}"
+        ws.speech_generator.completion_event.set()
+        ws.close()
  
  
  
@@ -105,38 +125,66 @@ def on_close(ws):
     print("### closed ###")
  
  
-# 收到websocket连接建立的���理
+# 收到websocket连接建立的处理
 def on_open(ws):
     def run(*args):
-        d = {"common": wsParam.CommonArgs,
-             "business": wsParam.BusinessArgs,
-             "data": wsParam.Data,
+        d = {"common": ws.wsParam.CommonArgs,
+             "business": ws.wsParam.BusinessArgs,
+             "data": ws.wsParam.Data,
              }
         d = json.dumps(d)
         print("------>开始发送文本数据")
         ws.send(d)
-        if os.path.exists('./demo.mp3'):
-            os.remove('./demo.mp3')
+        if os.path.exists(f"./speech/{ws.text}.mp3"):
+            os.remove(f"./speech/{ws.text}.mp3")
  
     thread.start_new_thread(run, ())
  
-def load_config():
-    config = {}
-    with open('application.properties', 'r') as f:
-        for line in f:
-            if '=' in line:
-                key, value = line.strip().split('=', 1)
-                config[key] = value
-    return config
-
-def text_to_speech(text):
-    config = load_config()
-    wsParam = Ws_Param(APPID=config['xfyun.appid'],
-                      APIKey=config['xfyun.apikey'],
-                      APISecret=config['xfyun.apisecret'],
+def generate_speech_sync(text):
+    """
+    同步生成语音文件
+    :param text: 要转换的文本
+    :return: 生成的音频文件路径
+    :raises: Exception 如果生成过程中发生错误
+    """
+    config = load_config('xfyun')
+    wsParam = Ws_Param(APPID=config['appid'],
+                      APIKey=config['apikey'],
+                      APISecret=config['apisecret'],
                       Text=text)
+    
+    speech_generator = SpeechGenerator()
+    
     websocket.enableTrace(False)
     wsUrl = wsParam.create_url()
-    ws = websocket.WebSocketApp(wsUrl, on_message=on_message, on_error=on_error, on_close=on_close)
+    ws = websocket.WebSocketApp(wsUrl, 
+                              on_message=on_message, 
+                              on_error=on_error, 
+                              on_close=on_close)
+    ws.wsParam = wsParam
+    ws.text = text
+    ws.speech_generator = speech_generator
     ws.on_open = on_open
-    ws.run_forever(sslopt={"cert_reqs": ssl.CERT_NONE})
+    
+    # 在新线程中运行WebSocket
+    ws_thread = threading.Thread(target=lambda: ws.run_forever(sslopt={"cert_reqs": ssl.CERT_NONE}))
+    ws_thread.daemon = True
+    ws_thread.start()
+    
+    # 等待完成或超时
+    timeout = int(config.get('timeout', 50))
+    if not speech_generator.completion_event.wait(timeout=timeout):  # 50秒超时
+        raise Exception("语音生成超时")
+    
+    # 检查是否有错误
+    if speech_generator.error:
+        raise Exception(speech_generator.error)
+    
+    return speech_generator.output_path
+
+# 如果./speech/text.mp3存在，则返回文件路径，否则生成语音文件
+def text_to_speech(text):
+    if os.path.exists(f"./speech/{text}.mp3"):
+        return f"./speech/{text}.mp3"
+    else:
+        return generate_speech_sync(text)

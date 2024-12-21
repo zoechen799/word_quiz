@@ -14,14 +14,33 @@ from datetime import datetime, timedelta
 import os
 import tempfile
 from fastapi.responses import FileResponse
+from text_similarity_bert import BertSimilarity
 
 # 创建API路由器
 api_router = APIRouter(prefix="/api")
 
 app = FastAPI()
 
-# 用于追踪当前单词索引的变量
-current_word_index = 0
+# 添加CORS中间件
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# 开发模式配置
+class NoCache(StaticFiles):
+    def is_not_modified(self, response_headers, request_headers) -> bool:
+        return False
+
+# 根据环境变量判断是否为开发模式
+if os.getenv("ENV") == "development":
+    static_files = NoCache
+else:
+    static_files = StaticFiles
+    init_db()
 
 # 配置CORS
 app.add_middleware(
@@ -34,13 +53,13 @@ app.add_middleware(
 
 # 修改OAuth2配置，使用新的token路径
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/token")
+similarity = BertSimilarity()
 
 # JWT 配置
 SECRET_KEY = "your-secret-key"  # 在生产环境中应该使用环境变量
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
-init_db()
 
 # 加载单词数据
 with open('toefl.json', 'r', encoding='utf-8') as f:
@@ -58,9 +77,6 @@ class WordResponse(BaseModel):
     phonetic: Optional[str]
     part_of_speech: Optional[str]
 
-def calculate_similarity(text1: str, text2: str) -> float:
-    """计算两个文本之间的相似度"""
-    return SequenceMatcher(None, text1, text2).ratio()
 
 async def get_current_user(token: str = Depends(oauth2_scheme)):
     """验证用户token并返回用户名"""
@@ -129,14 +145,13 @@ async def check_answer(
     
     correct_meaning = word_list[current_word_index]["chinese_meaning"]
     # 打印当前的单词和索引，用于调试
-    print(f"用户: {username}, 当前单词: {word_list[current_word_index]['word']}, current_word_index: {current_word_index}")
-    meanings = [m.strip() for m in correct_meaning.replace('；', ';', ',', '，').split(';')]
+    meanings = [m.strip() for m in correct_meaning.replace('；', ';').replace(',', ';').replace('，', ';').split(';')]
     
-    max_similarity = max(calculate_similarity(user_answer.answer, meaning) for meaning in meanings)
+    score = max(similarity.calculate_similarity(user_answer.answer, meaning) for meaning in meanings)
     
     response = {
-        "similarity": round(max_similarity * 100, 2),
-        "passed": max_similarity >= 0.6,
+        "similarity": round(score * 100, 2),
+        "passed": score >= 0.85,
         "correct_meaning": correct_meaning
     }
     
@@ -161,8 +176,9 @@ async def next_word(username: str = Depends(get_current_user)):
     )
 
 @api_router.get("/progress")
-def get_progress():
+def get_progress(username: str = Depends(get_current_user)):
     """获取学习进度"""
+    current_word_index = UserStore.get_word_index(username)
     return {
         "current_index": current_word_index,
         "total_words": len(word_list),
@@ -170,10 +186,9 @@ def get_progress():
     }
 
 @api_router.post("/reset")
-def reset_progress():
+def reset_progress(username: str = Depends(get_current_user)):
     """重置学习进度"""
-    global current_word_index
-    current_word_index = 0
+    UserStore.update_word_index(username, 0)
     return {"message": "进度已重置"}
 
 @api_router.get("/word-audio/{word}")
@@ -187,9 +202,24 @@ async def get_word_audio(word: str):
         # 返回音频文件
         return FileResponse(
             audio_path,
-            media_type="audio/wav",
-            filename=f"{word}.wav"
+            media_type="audio/mp3",
+            filename=f"{word}.mp3"
         )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/add-to-wrong-list")
+async def add_to_wrong_list(request: dict, 
+      username: str = Depends(get_current_user)):
+    word = request.get("word")
+    
+    if not username or not word:
+        raise HTTPException(status_code=400, detail="Missing username or word")
+    
+    try:
+        # 这里添加将单词加入错词本的逻辑
+        UserStore.add_to_wrong_list(username, word)
+        return {"message": "Successfully added to wrong list"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -197,9 +227,9 @@ async def get_word_audio(word: str):
 app.include_router(api_router)
 
 # 配置多个静态目录
-app.mount("/js", StaticFiles(directory="ui/js"), name="js")
-app.mount("/css", StaticFiles(directory="ui/css"), name="css")
-app.mount("/images", StaticFiles(directory="ui/images"), name="images")
+app.mount("/js", static_files(directory="ui/js"), name="js")
+app.mount("/css", static_files(directory="ui/css"), name="css")
+app.mount("/images", static_files(directory="ui/images"), name="images")
 
 # HTML文件目录放在最后配置
-app.mount("/", StaticFiles(directory="ui", html=True), name="ui") 
+app.mount("/", static_files(directory="ui", html=True), name="ui") 

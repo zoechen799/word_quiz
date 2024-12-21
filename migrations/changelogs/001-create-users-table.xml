@@ -50,4 +50,44 @@
             DROP TRIGGER IF EXISTS update_users_timestamp;
         </rollback>
     </changeSet>
+
+    <changeSet id="2" author="zihan.chen">
+        <createTable tableName="wrong_words">
+            <column name="id" type="int" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="username" type="varchar(50)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="word" type="varchar(100)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="error_count" type="int" defaultValue="1">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="timestamp" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="timestamp" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addUniqueConstraint 
+            tableName="wrong_words" 
+            columnNames="username, word"
+            constraintName="uk_wrong_words_username_word"/>
+
+        <createIndex 
+            indexName="idx_wrong_words_error_count"
+            tableName="wrong_words">
+            <column name="error_count" descending="true"/>
+        </createIndex>
+
+        <createIndex 
+            indexName="idx_wrong_words_updated_at"
+            tableName="wrong_words">
+            <column name="updated_at" descending="true"/>
+        </createIndex>
+    </changeSet>
 </databaseChangeLog> 

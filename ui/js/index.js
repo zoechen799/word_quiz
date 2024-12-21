@@ -1,113 +1,117 @@
-// 检查是否已登录
-if (!localStorage.getItem('token')) {
-    window.location.href = '/login.html';
-}
+// 全局变量和状态
+var currentWord = '';
 
-let currentWord = '';
-const token = localStorage.getItem('token');
-
-function fetchWord() {
-    fetch('/api/current-word', {
-        headers: {
-            'Authorization': `Bearer ${token}`
-        }
-    })
-    .then(response => {
-        if (response.status === 401) {
-            window.location.href = '/login.html';
-            return;
-        }
-        return response.json();
-    })
-    .then(data => {
-        document.getElementById('word').textContent = data.word;
-        document.getElementById('phonetic').textContent = data.phonetic || '';
-        currentWord = data.word;
-    })
-    .catch(error => {
-        console.error('Error:', error);
-    });
-}
-
+// API 调用函数
 function checkAnswer(answer) {
-    return fetch('/api/check-answer', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ answer })
-    })
-    .then(response => response.json())
-    .catch(error => {
-        console.error('Error:', error);
-        return null;
-    });
+    api.checkAnswer(answer)
+        .then(function(result) {
+            const {similarity, passed, correct_meaning} = result;
+            if(!passed){
+                addToWrongList(currentWord);
+            }else{
+                showResultDialog(result);
+            }
+            return result.passed;
+        })
+        .catch(function(error) {
+            console.error('Error checking answer:', error);
+            alert('检查答案失败：' + error.message);
+        });
 }
 
-function nextWord() {
-    return fetch('/api/next-word', {
-        method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${token}`
-        }
-    })
-    .then(() => fetchWord())
-    .catch(error => {
-        console.error('Error:', error);
-    });
+function addToWrongList() {
+    api.addToWrongList(currentWord)
+        .then(function() {
+            updateWrongWordsList();
+        })
+        .catch(function(error) {
+            console.error('Error adding to wrong list:', error);
+            alert('添加到错词本失败：' + error.message);
+        });
 }
 
-// 添加播放音频的函数
+// 添加播放音频函数
 function playWordAudio(word) {
-    const audio = new Audio(`/api/word-audio/${word}`);
-    audio.play().catch(error => console.error('播放失败:', error));
+    var audio = new Audio('/api/word-audio/' + word);
+    audio.play().catch(function(error) {
+        console.error('播放失败:', error);
+    });
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-    const input = document.getElementById('answer');
-    const feedback = document.getElementById('feedback');
+function getNextWord() {
+    api.getNextWord()
+        .then(function(data) {
+            currentWord = data.word;
+            document.getElementById('word-label').textContent = data.word;
+            document.getElementById('phonetic').textContent = data.phonetic || '';
+            document.getElementById('part-of-speech').textContent = data.part_of_speech || '';
+            document.getElementById('answer-input').value = '';
+            hideResultDialog();
+            playWordAudio(currentWord);
+        })
+        .catch(function(error) {
+            console.error('Error getting next word:', error);
+            alert('获取下一个单词失败：' + error.message);
+        });
+}
 
-    input.addEventListener('keypress', (e) => {
+// UI 处理函数
+function showResultDialog(result) {
+    var dialog = document.getElementById('result-dialog');
+    var dialogTitle = document.getElementById('dialog-title');
+    var correctAnswer = document.getElementById('correct-answer');
+    
+    dialogTitle.textContent = result.passed ? "恭喜正确！" : "回答错误";
+    correctAnswer.textContent = "正确答案：" + result.correct_meaning;
+    dialog.style.display = 'block';
+}
+
+function hideResultDialog() {
+    document.getElementById('result-dialog').style.display = 'none';
+}
+
+// 事件处理函数
+function handleAnswer() {
+    var answerInput = document.getElementById('answer-input');
+    var answer = answerInput.value.trim();
+    if (answer) {
+        checkAnswer(answer);
+    }
+}
+
+// 初始化事件监听
+function initializeEventListeners() {
+    // Next按钮点击事件
+    document.getElementById('next-button').addEventListener('click', handleAnswer);
+    
+    // 输入框回车事件
+    document.getElementById('answer-input').addEventListener('keypress', function(e) {
         if (e.key === 'Enter') {
-            checkAnswer(input.value)
-                .then(result => {
-                    if (result) {
-                        if (result.similarity >= 60) {
-                            feedback.textContent = '正确！';
-                            feedback.className = 'feedback';
-                            input.value = '';
-                            return nextWord();
-                        } else if (result.similarity >= 20) {
-                            feedback.textContent = '已经接近了，请再想想。';
-                            feedback.className = 'feedback yellow-feedback';
-                        } else {
-                            feedback.textContent = '不正确，请重新输入';
-                            feedback.className = 'feedback red-feedback';
-                            input.classList.add('shake');
-                            setTimeout(() => {
-                                input.classList.remove('shake');
-                            }, 500);
-                        }
-                    }
-                });
+            handleAnswer();
         }
     });
-
-    // 初始加载单词
-    fetchWord();
-
-    // 更新播放按钮的事件监听
-    document.getElementById('playButton').addEventListener('click', () => {
-        if (currentWord) {
-            playWordAudio(currentWord);
-        }
+    
+    // 对话框中的"下一题"按钮
+    document.getElementById('next-word-btn').addEventListener('click', getNextWord);
+    
+    // 对话框中的"加入错词本"按钮
+    document.getElementById('add-wrong-list-btn').addEventListener('click', function() {
+        addToWrongList();
+        getNextWord();
     });
+}
 
-    // 保留单词点击播放功能
-    document.getElementById('word').addEventListener('click', () => {
-        if (currentWord) {
-            playWordAudio(currentWord);
-        }
-    });
-}); 
+// 更新错词本列表显示
+function updateWrongWordsList() {
+    // TODO: 实现错词本更新逻辑
+}
+
+// 页面加载完成后的初始化
+document.addEventListener('DOMContentLoaded', function() {
+    initializeEventListeners();
+    getNextWord(); // 获取第一个单词
+    // 更新播放按钮点击事件
+    document.getElementById('play-audio').onclick = function() {
+        playWordAudio(currentWord);
+    };
+});
