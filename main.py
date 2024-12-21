@@ -74,6 +74,15 @@ with open('toefl.json', 'r', encoding='utf-8') as f:
 with open('chapter.json', 'r', encoding='utf-8') as f:
     chapter_list = json.load(f)
 
+def get_word_index(word: str):
+    # 返回word在word_list中的索引, word_list的格式是[{word: str, phonetic: str, part_of_speech: str, chinese_meaning: str}]
+    return next((i for i, w in enumerate(word_list) if w["word"] == word), None)
+
+# 遍历chapter_list，找到start_word和end_word，在word_list中的索引，作为start_index和end_index
+for chapter in chapter_list:
+    chapter["start_index"] = get_word_index(chapter["start_word"])
+    chapter["end_index"] = get_word_index(chapter["end_word"])
+
 class UserCreate(BaseModel):
     username: str
     password: str
@@ -194,27 +203,28 @@ def get_progress(username: str = Depends(get_current_user)):
     
     # 获取当前章节信息
     current_chapter = None
-    for chapter in chapter_list:
+    chapter_index = None
+    for idx, chapter in enumerate(chapter_list):
         if chapter["start_index"] <= current_word_index < chapter["end_index"]:
             current_chapter = chapter
+            chapter_index = idx
             break
     
     # 如果找到当前章节，计算章节内进度
     chapter_progress = None
     if current_chapter:
         chapter_total = current_chapter["end_index"] - current_chapter["start_index"]
-        chapter_current = current_word_index - current_chapter["start_index"]
+        chapter_current = current_word_index - current_chapter["start_index"] + 1
         chapter_progress = round((chapter_current / chapter_total) * 100, 2)
     
     return {
         "current_index": current_word_index,
+        "chapter_current": chapter_current,
+        "current_chapter_index": chapter_index,
         "total_words": len(word_list),
         "progress_percentage": round((current_word_index / len(word_list)) * 100, 2),
-        "current_chapter": {
-            "name": current_chapter["name"] if current_chapter else None,
-            "progress": chapter_progress,
-            "total_words": (current_chapter["end_index"] - current_chapter["start_index"]) if current_chapter else None
-        } if current_chapter else None
+        "current_chapter_progress": chapter_progress,
+        "current_chapter_total_words": (current_chapter["end_index"] - current_chapter["start_index"]) if current_chapter else None
     }
 
 # 切换章节

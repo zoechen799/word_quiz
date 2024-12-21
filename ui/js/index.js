@@ -81,6 +81,7 @@ function getNextWord() {
             document.getElementById('answer-input').value = '';
             hideResultDialog();
             playWordAudio(currentWord);
+            updateProgress();
         })
         .catch(function(error) {
             console.error('Error getting next word:', error);
@@ -233,26 +234,24 @@ function showToast(message, type) {
  */
 function updateProgress() {
     api.getProgress()
-        .then(data => {
+        .then(result => {
+            const {current_chapter_index, current_index,current_chapter_progress,
+                current_chapter_total_words, chapter_current,
+                progress_percentage
+            } = result;
+            
+            const chapterSelect = document.getElementById('chapter-select');
+            chapterSelect.value = current_chapter_index + 1;
+
             // 更新总进度
             const progressBar = document.querySelector('.progress-bar');
             const progressText = document.querySelector('.progress-text');
             
-            progressBar.style.width = `${data.progress_percentage}%`;
-            progressText.textContent = `${data.current_index} / ${data.total_words}`;
+            progressBar.style.width = `${current_chapter_progress}%`;
+            progressText.textContent = `${chapter_current} / ${current_chapter_total_words}`;
             
-            // 更新章节信息
-            if (data.current_chapter) {
-                const chapterInfo = document.querySelector('.chapter-info');
-                chapterInfo.textContent = `${data.current_chapter.name} - 进度: ${data.current_chapter.progress}%`;
-            }
-            
-            // 更新章节选择器的选中值
-            if (data.current_chapter) {
-                const chapterSelect = document.getElementById('chapter-select');
-                const chapterNumber = data.current_chapter.name.match(/\d+/)[0];
-                chapterSelect.value = chapterNumber;
-            }
+            const chapterInfo = document.querySelector('.chapter-info');
+            chapterInfo.textContent = `第${current_chapter_index + 1}章`;
         })
         .catch(error => {
             console.error('获取进度失败:', error);
@@ -261,7 +260,6 @@ function updateProgress() {
 
 function initChapterSelect() {
     const chapterSelect = document.getElementById('chapter-select');
-    
     // 生成33个章节的选项
     for (let i = 1; i <= 33; i++) {
         const option = document.createElement('option');
@@ -269,6 +267,8 @@ function initChapterSelect() {
         option.textContent = `第${i}章`;
         chapterSelect.appendChild(option);
     }
+
+    updateProgress();
     
     // 监听选择变化
     chapterSelect.addEventListener('change', function() {
@@ -295,4 +295,44 @@ document.addEventListener('DOMContentLoaded', function() {
     };
     updateWrongWordsList();
     initChapterSelect();
+
+    // 头像菜单相关
+    const avatarBtn = document.getElementById('avatar-btn');
+    const avatarMenu = document.getElementById('avatar-menu');
+    const settingsBtn = document.getElementById('settings-btn');
+    const logoutBtn = document.getElementById('logout-btn');
+
+    // 点击头像显示/隐藏菜单
+    avatarBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        avatarMenu.classList.toggle('show');
+    });
+
+    // 点击页面其他地方关闭菜单
+    document.addEventListener('click', () => {
+        avatarMenu.classList.remove('show');
+    });
+
+    // 防止点击菜单内部时关闭菜单
+    avatarMenu.addEventListener('click', (e) => {
+        e.stopPropagation();
+    });
+
+    // 设置按钮点击事件
+    settingsBtn.addEventListener('click', () => {
+        // TODO: 实现设置功能或跳转到设置页面
+        window.location.href = '/settings.html';
+    });
+
+    // 退出按钮点击事件
+    logoutBtn.addEventListener('click', async () => {
+        try {
+            localStorage.removeItem('token');
+            // 退出成功后跳转到登录页
+            window.location.href = '/login.html';
+        } catch (error) {
+            console.error('退出失败:', error);
+            showToast('退出失败，请重试');
+        }
+    });
 });
