@@ -4,11 +4,26 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>词汇测试</title>
+    <link rel="stylesheet" href="/css/toast.css">
     <link rel="stylesheet" href="/css/index.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 </head>
 <body>
     <div class="container">
+        <div class="chapter-select-container">
+            <select id="chapter-select" class="chapter-select">
+                <option value="" disabled selected>选择章节</option>
+            </select>
+            <div class="progress-container">
+                <div class="progress-info">
+                    <div class="chapter-info">第1章</div>
+                    <div class="progress-text">0 / 100</div>
+                </div>
+                <div class="progress-bar-container">
+                    <div class="progress-bar"></div>
+                </div>
+            </div>
+        </div>
         <div class="main-content">
             <div id="progress"></div>
             <div id="word-label"></div>
@@ -48,6 +63,7 @@
             </div>
         </div>
     </div>
+    <div id="toast" class="toast"></div>
     <script type="module" src="/js/api.js"></script>
     <script type="module" src="/js/index.js"></script>
 </body>

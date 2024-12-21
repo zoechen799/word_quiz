@@ -1,13 +1,29 @@
 // 全局变量和状态
 var currentWord = '';
+var currentWrongCounts = {};
+let currentWrongWordsPage = 1;
+const wrongWordsPerPage = 5;
 
 // API 调用函数
 function checkAnswer(answer) {
+    if(currentWrongCounts[currentWord] !== undefined){
+        currentWrongCounts[currentWord]++;
+    }else{
+        currentWrongCounts[currentWord] = 0;
+    }
     api.checkAnswer(answer)
         .then(function(result) {
-            const {similarity, passed, correct_meaning} = result;
-            if(!passed){
-                addToWrongList(currentWord);
+            const {similarity, passed, correct_meaning, wrong_count} = result;
+            var wrongCount = Math.max(currentWrongCounts[currentWord], wrong_count? wrong_count : 0);
+            if( !passed && wrongCount < 3 ) {
+                if (similarity >= 50) {
+                    showToast("已经接近了，加油！", "warning");
+                } else {
+                    showToast("再想想", "error");
+                }
+                if(wrong_count > 1) {
+                    addToWrongList(currentWord);
+                }
             }else{
                 showResultDialog(result);
             }
@@ -36,6 +52,23 @@ function playWordAudio(word) {
     audio.play().catch(function(error) {
         console.error('播放失败:', error);
     });
+}
+
+function getCurrentWord() {
+    api.getCurrentWord()
+        .then(function(data) {
+            currentWord = data.word;
+            document.getElementById('word-label').textContent = data.word;
+            document.getElementById('phonetic').textContent = data.phonetic || '';
+            document.getElementById('part-of-speech').textContent = data.part_of_speech || '';
+            document.getElementById('answer-input').value = '';
+            hideResultDialog();
+            playWordAudio(currentWord);
+        })
+        .catch(function(error) {
+            console.error('Error getting next word:', error);
+            alert('获取当前单词失败：' + error.message);
+        });
 }
 
 function getNextWord() {
@@ -103,7 +136,153 @@ function initializeEventListeners() {
 
 // 更新错词本列表显示
 function updateWrongWordsList() {
-    // TODO: 实现错词本更新逻辑
+    api.getWrongList(currentWrongWordsPage, wrongWordsPerPage)
+        .then(data => {
+            const wrongWordsPanel = document.querySelector('.wrong-words-panel');
+            const listContainer = wrongWordsPanel.querySelector('.wrong-words-list');
+            const paginationContainer = wrongWordsPanel.querySelector('.pagination');
+            
+            // 清空现有内容
+            listContainer.innerHTML = '';
+            
+            // 如果没有错词，显示提示信息
+            if (data.total_words === 0) {
+                listContainer.innerHTML = '<div class="empty-message">还没有错词记录</div>';
+                paginationContainer.style.display = 'none';
+                return;
+            }
+            
+            // 显示错词列表
+            data.words.forEach(word => {
+                const wordItem = document.createElement('div');
+                wordItem.className = 'wrong-word-item';
+                wordItem.innerHTML = `
+                    <div class="word-info">
+                        <span class="word">${word.word}</span>
+                        <span class="meaning">${word.meaning}</span>
+                    </div>
+                    <span class="wrong-count">错误: ${word.error_count}次</span>
+                `;
+                listContainer.appendChild(wordItem);
+            });
+            
+            // 更新分页控件
+            paginationContainer.style.display = 'flex';
+            updatePagination(data.total_pages);
+        })
+        .catch(error => {
+            console.error('获取错词列表失败:', error);
+        });
+}
+
+function updatePagination(totalPages) {
+    const paginationContainer = document.querySelector('.wrong-words-panel .pagination');
+    paginationContainer.innerHTML = '';
+    
+    // 上一页按钮
+    const prevButton = document.createElement('button');
+    prevButton.className = 'pagination-btn';
+    prevButton.textContent = '上一页';
+    prevButton.disabled = currentWrongWordsPage === 1;
+    prevButton.onclick = () => {
+        if (currentWrongWordsPage > 1) {
+            currentWrongWordsPage--;
+            updateWrongWordsList();
+        }
+    };
+    
+    // 页码显示
+    const pageInfo = document.createElement('span');
+    pageInfo.className = 'page-info';
+    pageInfo.textContent = `${currentWrongWordsPage} / ${totalPages}`;
+    
+    // 下一页按钮
+    const nextButton = document.createElement('button');
+    nextButton.className = 'pagination-btn';
+    nextButton.textContent = '下一页';
+    nextButton.disabled = currentWrongWordsPage === totalPages;
+    nextButton.onclick = () => {
+        if (currentWrongWordsPage < totalPages) {
+            currentWrongWordsPage++;
+            updateWrongWordsList();
+        }
+    };
+    
+    paginationContainer.appendChild(prevButton);
+    paginationContainer.appendChild(pageInfo);
+    paginationContainer.appendChild(nextButton);
+}
+
+function showToast(message, type) {
+    const toast = document.getElementById('toast');
+    toast.textContent = message;
+    toast.className = 'toast ' + (type === 'warning' ? 'toast-warning' : 'toast-error');
+    toast.style.display = 'flex';
+    
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        setTimeout(() => {
+            toast.style.display = 'none';
+            toast.style.opacity = '0.6';
+        }, 300);
+    }, 1000);
+}
+
+/**
+ * 更新学习进度显示
+ */
+function updateProgress() {
+    api.getProgress()
+        .then(data => {
+            // 更新总进度
+            const progressBar = document.querySelector('.progress-bar');
+            const progressText = document.querySelector('.progress-text');
+            
+            progressBar.style.width = `${data.progress_percentage}%`;
+            progressText.textContent = `${data.current_index} / ${data.total_words}`;
+            
+            // 更新章节信息
+            if (data.current_chapter) {
+                const chapterInfo = document.querySelector('.chapter-info');
+                chapterInfo.textContent = `${data.current_chapter.name} - 进度: ${data.current_chapter.progress}%`;
+            }
+            
+            // 更新章节选择器的选中值
+            if (data.current_chapter) {
+                const chapterSelect = document.getElementById('chapter-select');
+                const chapterNumber = data.current_chapter.name.match(/\d+/)[0];
+                chapterSelect.value = chapterNumber;
+            }
+        })
+        .catch(error => {
+            console.error('获取进度失败:', error);
+        });
+}
+
+function initChapterSelect() {
+    const chapterSelect = document.getElementById('chapter-select');
+    
+    // 生成33个章节的选项
+    for (let i = 1; i <= 33; i++) {
+        const option = document.createElement('option');
+        option.value = i;
+        option.textContent = `第${i}章`;
+        chapterSelect.appendChild(option);
+    }
+    
+    // 监听选择变化
+    chapterSelect.addEventListener('change', function() {
+        const selectedChapter = parseInt(this.value);
+        api.switchChapter(selectedChapter-1)
+            .then(() => {
+                // 切换成功后刷新单词和进度
+                updateProgress();
+                getCurrentWord();
+            })
+            .catch(error => {
+                console.error('切换章节失败:', error);
+            });
+    });
 }
 
 // 页面加载完成后的初始化
@@ -114,4 +293,6 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('play-audio').onclick = function() {
         playWordAudio(currentWord);
     };
+    updateWrongWordsList();
+    initChapterSelect();
 });

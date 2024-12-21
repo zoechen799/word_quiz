@@ -1,8 +1,9 @@
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, Query
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.routing import APIRouter
+from fastapi.responses import FileResponse, RedirectResponse
 from pydantic import BaseModel
 import json
 from difflib import SequenceMatcher
@@ -12,9 +13,11 @@ from speech import text_to_speech
 import jwt as pyjwt
 from datetime import datetime, timedelta
 import os
-import tempfile
 from fastapi.responses import FileResponse
-from text_similarity_bert import BertSimilarity
+# from text_similarity_bert import BertSimilarity
+import math
+from util import load_config
+from open_ai import calculate_similarity
 
 # 创建API路由器
 api_router = APIRouter(prefix="/api")
@@ -53,17 +56,23 @@ app.add_middleware(
 
 # 修改OAuth2配置，使用新的token路径
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/token")
-similarity = BertSimilarity()
+# similarity = BertSimilarity()
 
-# JWT 配置
-SECRET_KEY = "your-secret-key"  # 在生产环境中应该使用环境变量
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+# 加载JWT配置
+jwt_config = load_config("jwt")
 
+# 使用配置中的JWT设置
+SECRET_KEY = jwt_config["secret_key"]
+ALGORITHM = jwt_config["algorithm"]
+ACCESS_TOKEN_EXPIRE_MINUTES = int(jwt_config["access_token_expire_minutes"])
 
 # 加载单词数据
 with open('toefl.json', 'r', encoding='utf-8') as f:
     word_list = json.load(f)
+
+# 加载章节数据
+with open('chapter.json', 'r', encoding='utf-8') as f:
+    chapter_list = json.load(f)
 
 class UserCreate(BaseModel):
     username: str
@@ -71,6 +80,9 @@ class UserCreate(BaseModel):
 
 class UserAnswer(BaseModel):
     answer: str
+
+class Progress(BaseModel):
+    index: int
 
 class WordResponse(BaseModel):
     word: str
@@ -143,16 +155,16 @@ async def check_answer(
     if current_word_index >= len(word_list):
         raise HTTPException(status_code=404, detail="已完成所有单词学习")
     
+    current_word = word_list[current_word_index]["word"]
     correct_meaning = word_list[current_word_index]["chinese_meaning"]
-    # 打印当前的单词和索引，用于调试
-    meanings = [m.strip() for m in correct_meaning.replace('；', ';').replace(',', ';').replace('，', ';').split(';')]
-    
-    score = max(similarity.calculate_similarity(user_answer.answer, meaning) for meaning in meanings)
-    
+    score = calculate_similarity(user_answer.answer, correct_meaning)
+    passed = score >= 80
+    wrong_count = UserStore.get_word_error_count(username, current_word)
     response = {
-        "similarity": round(score * 100, 2),
-        "passed": score >= 0.85,
-        "correct_meaning": correct_meaning
+        "similarity": score,
+        "passed": passed,
+        "correct_meaning": correct_meaning,
+        "wrong_count": wrong_count  # 添加错误次数到响应中
     }
     
     return response
@@ -179,11 +191,51 @@ async def next_word(username: str = Depends(get_current_user)):
 def get_progress(username: str = Depends(get_current_user)):
     """获取学习进度"""
     current_word_index = UserStore.get_word_index(username)
+    
+    # 获取当前章节信息
+    current_chapter = None
+    for chapter in chapter_list:
+        if chapter["start_index"] <= current_word_index < chapter["end_index"]:
+            current_chapter = chapter
+            break
+    
+    # 如果找到当前章节，计算章节内进度
+    chapter_progress = None
+    if current_chapter:
+        chapter_total = current_chapter["end_index"] - current_chapter["start_index"]
+        chapter_current = current_word_index - current_chapter["start_index"]
+        chapter_progress = round((chapter_current / chapter_total) * 100, 2)
+    
     return {
         "current_index": current_word_index,
         "total_words": len(word_list),
-        "progress_percentage": round((current_word_index / len(word_list)) * 100, 2)
+        "progress_percentage": round((current_word_index / len(word_list)) * 100, 2),
+        "current_chapter": {
+            "name": current_chapter["name"] if current_chapter else None,
+            "progress": chapter_progress,
+            "total_words": (current_chapter["end_index"] - current_chapter["start_index"]) if current_chapter else None
+        } if current_chapter else None
     }
+
+# 切换章节
+@api_router.post("/switch-chapter")
+def switch_chapter(progress: Progress,
+                   username: str = Depends(get_current_user)):
+    """切换章节"""
+    # 根据chapter_index从chapter_list中获取start_word, 然后更新UserStore中的current_word_index
+    start_word = chapter_list[progress.index]["start_word"]
+    # 查找 start_word 在 word_list 中的索引
+    start_index = next(
+        (i for i, word in enumerate(word_list) if word["word"] == start_word),
+        None
+    )
+    
+    if start_index is None:
+        raise HTTPException(status_code=404, detail=f"找不到单词 {start_word}")
+        
+    print(f"start_word: {start_word}, index: {start_index}")
+    UserStore.update_word_index(username, start_index)
+
 
 @api_router.post("/reset")
 def reset_progress(username: str = Depends(get_current_user)):
@@ -222,6 +274,52 @@ async def add_to_wrong_list(request: dict,
         return {"message": "Successfully added to wrong list"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/get-wrong-list")
+def get_wrong_list(
+    page: int = Query(default=1, ge=1),
+    per_page: int = Query(default=5, ge=1),
+    username: str = Depends(get_current_user)
+):
+    """获取用户的错词列表"""
+    wrong_words = UserStore.get_wrong_list(username, page, per_page)
+    # wrong_words 是格式为[{"word": "word", "error_count": 1}]的一个list
+    # 根据wrong_words中的word，从word_list中获取对应的chinese_meaning
+    for word in wrong_words:
+        word_info = next((w for w in word_list if w["word"] == word["word"]), None)
+        if word_info:
+            word["meaning"] = word_info["chinese_meaning"]
+    total_count = UserStore.get_wrong_words_count(username)
+    total_pages = math.ceil(total_count / per_page)
+    return {
+        "words": wrong_words,
+        "total_pages": total_pages,
+        "current_page": page,
+        "total_words": total_count
+    }
+
+@app.post("/api/next-word")
+async def next_word(username: str = Depends(get_current_user)):
+    """获取下一个单词"""
+    current_word_index = UserStore.get_word_index(username)
+    
+    # 如果是新用户，初始化索引为0
+    if current_word_index is None:
+        # 没有找到用户的情况下，需要重定向到登录页面
+        raise HTTPException(status_code=401, detail="无效的认证信息")
+    else:
+        new_index = current_word_index + 1
+        # 检查是否超出单词列表范围
+        if new_index >= len(word_list):
+            raise HTTPException(status_code=404, detail="已完成所有单词学习")
+        
+        UserStore.update_word_index(username, new_index)
+        current_word_index = new_index
+    
+    return {
+        "word": word_list[current_word_index]["word"],
+        "phonetic": word_list[current_word_index].get("phonetic", "")
+    }
 
 # 将API路由器注册到应用
 app.include_router(api_router)

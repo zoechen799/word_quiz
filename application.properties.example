@@ -14,3 +14,14 @@ logLevel=info
 appid=
 apikey=
 apisecret=
+
+[jwt]
+jwt.secret_key=your-secret-key-here
+jwt.algorithm=HS256
+jwt.access_token_expire_minutes=300
+
+[azure_openai]
+base_url=
+api_version=
+api_key=
+deployment_name=gpt-4o

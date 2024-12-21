@@ -1,0 +1,4 @@
+always write javascript code in ui/js/${filename}.js, the filename is the name of the html file's filename.
+always write css style in ui/css/${filename}.css, the filename is the name of the html file's filename.
+in javascript code, when writing fetch request, always use the request function in ui/js/api.js. In order to leverage the auth header and common error handling.
+when creating a new database table, always add a liquibase changeset in migration/changelogs/001-init.xml.

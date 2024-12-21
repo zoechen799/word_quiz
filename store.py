@@ -39,6 +39,7 @@ class WrongWord(Base):
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
 class UserStore:
+
     @staticmethod
     def create_user(username: str, password: str) -> Optional[User]:
         """创建新用户"""
@@ -104,10 +105,11 @@ class UserStore:
             db.close()
 
     @staticmethod
-    def add_to_wrong_list(username: str, word: str) -> None:
+    def add_to_wrong_list(username: str, word: str) -> Optional[int]:
         """添加单词到错词本，如果已存在则增加错误次数"""
         with SessionLocal() as db:
             try:
+                count = 0
                 # 查找是否已存在
                 wrong_word = db.query(WrongWord).filter(
                     WrongWord.username == username,
@@ -118,6 +120,7 @@ class UserStore:
                     # 如果存在，增加错误次数
                     wrong_word.error_count += 1
                     wrong_word.updated_at = func.now()
+                    count = wrong_word.error_count
                 else:
                     # 如果不存在，创建新记录
                     wrong_word = WrongWord(
@@ -125,8 +128,9 @@ class UserStore:
                         word=word
                     )
                     db.add(wrong_word)
-
+                    count = 1
                 db.commit()
+                return count
             except SQLAlchemyError as e:
                 db.rollback()
                 raise e
@@ -197,7 +201,19 @@ class UserStore:
                 ).count()
             except SQLAlchemyError as e:
                 raise e
-
+    @staticmethod
+    def get_word_error_count(username: str, word: str) -> int:
+        """获取用户某个单词的错误次数"""
+        with SessionLocal() as db:
+            try:
+                wrong_word = db.query(WrongWord).filter(
+                    WrongWord.username == username,
+                    WrongWord.word == word
+                ).first()
+                
+                return wrong_word.error_count if wrong_word else 0
+            except SQLAlchemyError as e:
+                raise e
 # 创建数据库表
 def init_db():
     # 运行数据库迁移

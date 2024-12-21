@@ -81,6 +81,12 @@ var api = {
             body: JSON.stringify({ answer })
         });
     },
+    // 获取当前单词
+    getCurrentWord: function() {
+        return request('/api/current-word', {
+            method: 'GET'
+        });
+    },
 
     // 获取下一个单词
     getNextWord: function() {
@@ -99,11 +105,11 @@ var api = {
 
     // 获取错词本列表
     getWrongList: function(page, pageSize) {
-        return request('/api/wrong-list', {
+        return request('/api/get-wrong-list', {
             method: 'GET',
             params: { 
                 page: page || 1, 
-                pageSize: pageSize || 10 
+                per_page: pageSize || 5 
             }
         });
     },
@@ -113,7 +119,22 @@ var api = {
         return request('/api/start-wrong-words-review', {
             method: 'POST'
         });
-    }
+    },
+
+    // 切换章节
+    switchChapter: function(index) {
+        return request('/api/switch-chapter', {
+            method: 'POST',
+            body: JSON.stringify({ index })
+        });
+    },
+
+    // 获取进度
+    getProgress: function() {
+        return request('/api/progress', {
+            method: 'GET'
+        });
+    },
 };
 
 // 导出 api 对象
