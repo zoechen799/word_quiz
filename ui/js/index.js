@@ -288,7 +288,7 @@ function initChapterSelect() {
 // 页面加载完成后的初始化
 document.addEventListener('DOMContentLoaded', function() {
     initializeEventListeners();
-    getNextWord(); // 获取第一个单词
+    getCurrentWord(); // 获取第一个单词
     // 更新播放按钮点击事件
     document.getElementById('play-audio').onclick = function() {
         playWordAudio(currentWord);
