@@ -13,8 +13,8 @@ class LiquibaseMigrator:
     def __init__(self):
         self.config = self._load_config()
         self.liquibase_home = os.path.join(os.path.dirname(__file__), 'liquibase')
-        self.liquibase_jar_path = os.path.join(self.liquibase_home, 'lib', 'liquibase-core.jar')
-        self.mysql_connector_path = os.path.join(self.liquibase_home, 'lib', 'mysql-connector-j.jar')
+        self.liquibase_jar_path = os.path.join(self.liquibase_home, 'internal', 'lib', 'liquibase-core.jar')
+        self.mysql_connector_path = os.path.join(self.liquibase_home, 'internal', 'lib', 'mysql-connector-j.jar')
         
     def _load_config(self):
         """从 application.properties 加载配置"""
