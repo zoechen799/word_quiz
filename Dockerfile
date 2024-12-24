@@ -14,4 +14,4 @@ RUN pip install -i https://pypi.tuna.tsinghua.edu.cn/simple --no-cache-dir -r re
 COPY . .
 EXPOSE 8000
 
-CMD [ "python", "./main.py" ]
+CMD [ "/usr/local/bin/uvicorn", "main:app" ]

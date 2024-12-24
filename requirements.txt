@@ -8,3 +8,5 @@ jwt
 websocket
 bcrypt
 requests
+python-multipart
+uvicorn
