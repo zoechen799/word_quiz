@@ -5,6 +5,5 @@
         xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
                       http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
 
-    <!-- 引入所有变更集文件 -->
     <include file="changelogs/001-init.xml" relativeToChangelogFile="true"/>
 </databaseChangeLog> 

@@ -5,9 +5,7 @@
         xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
                       http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
 
-    <changeSet id="001" author="developer">
-        <comment>创建用户表</comment>
-        
+    <changeSet id="create table users" author="zihan.chen">
         <createTable tableName="users">
             <column name="id" type="int" autoIncrement="true">
                 <constraints primaryKey="true" nullable="false"/>
@@ -36,22 +34,7 @@
         </createIndex>
     </changeSet>
 
-    <changeSet id="002" author="developer">
-        <comment>添加更新时间触发器</comment>
-        
-        <sql>
-            CREATE TRIGGER update_users_timestamp
-            BEFORE UPDATE ON users
-            FOR EACH ROW
-            SET NEW.updated_at = CURRENT_TIMESTAMP;
-        </sql>
-        
-        <rollback>
-            DROP TRIGGER IF EXISTS update_users_timestamp;
-        </rollback>
-    </changeSet>
-
-    <changeSet id="2" author="zihan.chen">
+    <changeSet id="create table wrong_words" author="zihan.chen">
         <createTable tableName="wrong_words">
             <column name="id" type="int" autoIncrement="true">
                 <constraints primaryKey="true" nullable="false"/>
