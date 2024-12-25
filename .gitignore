@@ -64,3 +64,4 @@ speech/*.mp3
 tmp/**
 application.properties
 models/**
+similarity_cache.json

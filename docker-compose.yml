@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/mysql:5.7.44
+    container_name: wordquiz-mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: Initial0!
+      MYSQL_DATABASE: wordlearn_db
+    ports:
+      - "3306:3306"
+    volumes:
+      - /root/word_quiz/mysql-data:/var/lib/mysql
+
+  app:
+    image: word_quiz:latest
+    container_name: word_quiz
+    restart: always
+    ports:
+      - "8080:8080"
+    depends_on:
+      - mysql

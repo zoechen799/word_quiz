@@ -4,8 +4,31 @@ from typing import List
 from open_ai import calculate_similarity_openai
 import asyncio
 from functools import partial
+import json
+import os
 
 similarity = BertSimilarity()
+
+# 创建缓存文件路径
+CACHE_FILE = "similarity_cache.json"
+
+# 加载缓存
+def load_cache():
+    if os.path.exists(CACHE_FILE):
+        try:
+            with open(CACHE_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except:
+            return {}
+    return {}
+
+# 保存缓存
+def save_cache(cache):
+    with open(CACHE_FILE, 'w', encoding='utf-8') as f:
+        json.dump(cache, f, ensure_ascii=False, indent=2)
+
+# 初始化缓存
+similarity_cache = load_cache()
 
 def compare_single_meaning(answer: str, meaning: str) -> float:
     """比较单个含义与答案的相似度"""
@@ -63,13 +86,21 @@ async def check_answer_by_all_means(answer: str, correct_meaning: str) -> bool:
     
     Args:
         answer: 用户输入的答案
-        word: 单词信息，包含chinese字段作为正确答案
+        correct_meaning: 正确答案
         
     Returns:
         bool: 答案是否正确
     """
     if not answer or not correct_meaning:
         return False
+    
+    # 生成缓存key
+    cache_key = f"{answer}@{correct_meaning}"
+    
+    # 检查缓存
+    if cache_key in similarity_cache:
+        print("使用缓存的相似度分数")
+        return similarity_cache[cache_key]
     
     # 将同步函数包装成异步函数
     async def run_sync_in_thread(func, *args):
@@ -83,4 +114,10 @@ async def check_answer_by_all_means(answer: str, correct_meaning: str) -> bool:
     )
     
     print(f"bert 模型打分: {num1}, openai 打分: {num2}")
-    return min(num1, num2)
+    similarity_score = min(num1, num2)
+    
+    # 保存到缓存
+    similarity_cache[cache_key] = similarity_score
+    save_cache(similarity_cache)
+    
+    return similarity_score
