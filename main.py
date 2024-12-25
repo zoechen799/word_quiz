@@ -14,10 +14,9 @@ import jwt as pyjwt
 from datetime import datetime, timedelta
 import os
 from fastapi.responses import FileResponse
-# from text_similarity_bert import BertSimilarity
+from check_answer import check_answer_by_all_means
 import math
 from util import load_config
-from open_ai import calculate_similarity
 
 # 创建API路由器
 api_router = APIRouter(prefix="/api")
@@ -160,13 +159,15 @@ async def check_answer(
 ):
     """检查用户答案"""
     current_word_index = UserStore.get_word_index(username)
+    if current_word_index is None:
+        raise HTTPException(status_code=404, detail="用户不存在")
     
     if current_word_index >= len(word_list):
         raise HTTPException(status_code=404, detail="已完成所有单词学习")
     
     current_word = word_list[current_word_index]["word"]
     correct_meaning = word_list[current_word_index]["chinese_meaning"]
-    score = calculate_similarity(user_answer.answer, correct_meaning)
+    score = await check_answer_by_all_means(user_answer.answer, correct_meaning)
     passed = score >= 80
     wrong_count = UserStore.get_word_error_count(username, current_word)
     response = {

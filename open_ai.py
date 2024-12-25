@@ -86,7 +86,7 @@ def get_chat_completion(
         print(f"获取 AI 回复失败: {str(e)}")
         raise
 
-def calculate_similarity(text1, text2):
+def calculate_similarity_openai(text1, text2):
     messages = [
         {
             "role": "system",

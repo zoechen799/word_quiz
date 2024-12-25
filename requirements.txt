@@ -9,3 +9,5 @@ bcrypt
 requests
 python-multipart
 uvicorn
+transformers
+torch

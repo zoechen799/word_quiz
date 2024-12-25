@@ -7,6 +7,7 @@ import bcrypt
 from typing import Optional
 from migrator import run_migrations
 from util import load_config
+import json
 
 # 获取数据库配置
 config = load_config('database')
@@ -40,6 +41,18 @@ class User(Base):
     current_word_index = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "username": self.username,
+            "current_word_index": self.current_word_index,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None
+        }
+
+    def to_json(self):
+        return json.dumps(self.to_dict(), ensure_ascii=False)
 
 class WrongWord(Base):
     __tablename__ = "wrong_words"

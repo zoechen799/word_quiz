@@ -21,11 +21,17 @@ function checkAnswer(answer) {
                 } else {
                     showToast("再想想", "error");
                 }
-                if(wrong_count > 1) {
+                if(wrongCount > 1) {
                     addToWrongList(currentWord);
                 }
             }else{
-                showResultDialog(result);
+                if(wrongCount > 1) {
+                    addToWrongList(currentWord);
+                    showResultDialog(result, false);
+                }else{
+                    showResultDialog(result, true);
+                }
+                
             }
             return result.passed;
         })
@@ -90,11 +96,16 @@ function getNextWord() {
 }
 
 // UI 处理函数
-function showResultDialog(result) {
+function showResultDialog(result, showAddToWrongList = true) {
     var dialog = document.getElementById('result-dialog');
     var dialogTitle = document.getElementById('dialog-title');
     var correctAnswer = document.getElementById('correct-answer');
-    
+    var addToWrongListBtn = document.getElementById('add-wrong-list-btn');
+    if(showAddToWrongList) {
+        addToWrongListBtn.style.display = 'block';
+    }else{
+        addToWrongListBtn.style.display = 'none';
+    }
     dialogTitle.textContent = result.passed ? "恭喜正确！" : "回答错误";
     correctAnswer.textContent = "正确答案：" + result.correct_meaning;
     dialog.style.display = 'block';
