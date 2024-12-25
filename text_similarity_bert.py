@@ -1,13 +1,15 @@
 from transformers import BertTokenizer, BertModel
 import torch
 import torch.nn.functional as F
+import os
 
 class BertSimilarity:
     def __init__(self, model_name='bert-base-chinese'):
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         # 指定模型目录路径
-        model_dir = '/Users/zihan.chen/Projects/word_quiz/models/bert-base-chinese/'
-        
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        model_dir = os.path.join(current_dir, 'models', 'bert-base-chinese')
+        print(f"模型目录: {model_dir}")
         # 直接使用模型目录路径，而不是模型名称
         self.tokenizer = BertTokenizer.from_pretrained(
             model_dir,  # 使用完整路径而不是模型名称
