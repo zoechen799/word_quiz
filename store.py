@@ -11,8 +11,21 @@ from util import load_config
 # 获取数据库配置
 config = load_config('database')
 
+def get_database_url(config):
+    # 从 URL 中解析主机名/IP地址
+    # 假设 config['url'] 格式为: "mysql://hostname:3306/dbname?param=value"
+    url_parts = config['url'].split('/')
+    host = url_parts[2].split(':')[0]  # 提取主机名部分
+    
+    # 获取数据库名
+    database = url_parts[-1].split('?')[0]
+    
+    # 构建完整的数据库URL
+    DATABASE_URL = f"mysql+pymysql://{config['username']}:{config['password']}@{host}/{database}?charset=utf8mb4"
+    return DATABASE_URL
+
 # 创建数据库连接
-DATABASE_URL = f"mysql+pymysql://{config['username']}:{config['password']}@localhost/{config['url'].split('/')[-1].split('?')[0]}?charset=utf8mb4"
+DATABASE_URL = get_database_url(config)
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
