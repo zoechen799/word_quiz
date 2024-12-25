@@ -60,7 +60,7 @@ coverage.xml
 *.py,cover
 .hypothesis/
 .pytest_cache/ 
-speech/**
+speech/*.mp3
 tmp/**
 application.properties
 models/**

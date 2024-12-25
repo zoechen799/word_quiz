@@ -5,7 +5,6 @@ websocket-client
 pydantic
 typing
 PyJWT
-websocket
 bcrypt
 requests
 python-multipart
