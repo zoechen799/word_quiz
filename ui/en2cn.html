@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>英译中</title>
+    <link rel="stylesheet" href="/css/toast.css">
+    <link rel="stylesheet" href="/css/en2cn.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <div class="banner">
+            <div class="chapter-select-container">
+                <select id="chapter-select" class="chapter-select">
+                    <option value="" disabled selected>选择章节</option>
+                </select>
+            </div>
+            <div class="progress-container">
+                <div class="progress-info">
+                    <div class="chapter-info">第1章</div>
+                    <div class="progress-text">0 / 100</div>
+                </div>
+                <div class="progress-bar-container">
+                    <div class="progress-bar"></div>
+                </div>
+            </div>
+            <div class="avatar-container">
+                <button id="avatar-btn" class="avatar-btn">
+                    <i class="fas fa-user"></i>
+                </button>
+                <div id="avatar-menu" class="avatar-menu">
+                    <div class="menu-item" id="settings-btn">
+                        <i class="fas fa-cog"></i>
+                        设置
+                    </div>
+                    <div class="menu-item" id="logout-btn">
+                        <i class="fas fa-sign-out-alt"></i>
+                        退出
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="content">
+            <div class="main-content">
+                <div id="word-label"></div>
+                <div class="phonetic-container">
+                    <div id="phonetic"></div>
+                    <button id="play-audio" class="play-button">
+                        <i class="fas fa-volume-up"></i>
+                    </button>
+                </div>
+                <div id="part-of-speech"></div>
+                <div id="hint"></div>
+                <input type="text" id="answer-input" placeholder="请输入汉语意思">
+                <button id="next-button">Next</button>
+            </div>
+            
+            <div class="wrong-words-panel">
+                <div class="wrong-words-title">错词本</div>
+                <div class="wrong-words-list" id="wrongWordsList"></div>
+                <div class="wrong-words-footer">
+                    <div class="pagination">
+                        <button id="prevPage">上一页</button>
+                        <span id="pageInfo" class="page-info">第 1 页 / 共 1 页</span>
+                        <button id="nextPage">下一页</button>
+                    </div>
+                    <button id="reviewButton" class="review-button">复习错词</button>
+                </div>
+            </div>
+        </div>
+    
+        <div id="result-dialog" class="dialog" style="display: none;">
+            <div class="dialog-content">
+                <h3 id="dialog-title"></h3>
+                <p id="correct-answer"></p>
+                <div class="dialog-buttons">
+                    <button id="add-wrong-list-btn">加入错词本</button>
+                    <button id="next-word-btn">下一题</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="toast" class="toast"></div>
+    <script type="module" src="/js/api.js"></script>
+    <script type="module" src="/js/en2cn.js"></script>
+</body>
+</html>
